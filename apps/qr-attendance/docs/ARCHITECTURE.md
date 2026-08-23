@@ -58,34 +58,67 @@
 
 ## データフロー
 
-### 1. ユーザーログイン
+### 1. ユーザーログイン（Cognito と DB の相互補完）
 
 ```
-1. ユーザー → Amplify: ログインリクエスト
-2. Amplify → API Gateway: POST /v1/users/login
-3. API Gateway → Lambda (auth): 認証処理
-4. Lambda → Cognito: 認証確認
-5. Cognito → Lambda: 認証結果
-6. Lambda → RDS: ユーザー情報取得
-7. Lambda → API Gateway: JWTトークン + ユーザー情報
-8. API Gateway → Amplify: レスポンス
-9. Amplify → ユーザー: トークン保存
+1. フロント → API Gateway: POST /v1/users/login
+2. Lambda → Cognito: InitiateAuth（USER_PASSWORD_AUTH）
+3. 成功時、DB に users 行が無ければ Cognito 属性から users を自動作成
+4. Cognito にユーザーが無い（または認証失敗）が DB に行がありパスワードが一致する場合:
+   Cognito ユーザーを恒久パスワードで作成/修復してから再認証
+5. Lambda → クライアント: JWT（または API トークン）+ ユーザー情報
 ```
 
-### 2. QRコード打刻
+フロントは Amplify `signIn` を優先し、Cognito 側にユーザーが無い場合は上記 API ログインで救済したうえで再 signIn する。
+
+### 1b. 招待・自己登録（アトミック作成）
+
+- **生徒招待** `POST /v1/admin/students`: DB `users` を upsert したうえで Cognito `AdminCreateUser`（招待メール）。Cognito 失敗時は DB 行をロールバックする。
+- **スタッフ招待** `POST /v1/admin/invite`: 同様に Cognito 招待と DB 挿入をセットで行い、失敗時はロールバックする。
+- **自己登録** `POST /v1/users/register`: Cognito `SignUp` + 管理者確認のあと DB 挿入。DB 失敗時は Cognito ユーザーを削除する。
+- 共通実装は `backend/shared/utils/cognito-db-sync.ts`。Cognito 未設定時は招待 API は 503。
+
+### 1c. パスワードリセット（フロント → Cognito 直接）
+
+管理者 API は経由しない。ログイン画面 `/login/forgot-password` が Amplify の `resetPassword`（ForgotPassword）と `confirmResetPassword`（ConfirmForgotPassword）を呼ぶ。User Pool の `accountRecovery` は EMAIL_ONLY。リセットには `email_verified=true` が必要。
+
+### 2. QRコード打刻（1入退室＝1行）
 
 ```
-1. ユーザー → Amplify: QRコードスキャン
-2. Amplify → API Gateway: POST /v1/attendance/punch
-3. API Gateway → Lambda (attendance): 打刻処理
-4. Lambda → RDS: 
-   - QRコード検証
-   - 既存打刻チェック（入室/退室判定）
-   - attendance_logsテーブル更新
-5. Lambda → API Gateway: 打刻結果
-6. API Gateway → Amplify: レスポンス
-7. Amplify → ユーザー: 打刻完了通知
+1. スタッフ → Amplify: 利用者QRをスキャン（イベント選択済み）
+2. Amplify → API Gateway: POST /v1/users/attendance
+   body: qr_code_data, signature, event_id
+3. Lambda:
+   - HMAC 署名と QR 有効期限を検証
+   - 未申込なら registrations に walk-in 登録
+   - 未退室行（in_time IS NOT NULL AND out_time IS NULL）があれば退室 UPDATE
+   - 無ければ入室 INSERT（type='entry', in_time=NOW(), out_time=NULL）
+4. レスポンス: log_id, action ('in'|'out'), in_time, out_time, message
 ```
+
+**時刻**: Lambda の `new Date()` は打刻時刻に使わない。MySQL 接続は `timezone: '+09:00'` かつ `SET time_zone = '+09:00'`。入退室はいずれも DB の `NOW()`。退室は `out_time = GREATEST(NOW(), in_time)` とし、`in_time` は上書きしない。
+
+**連打防止**: 入室から約15秒以内の再スキャンは退室にしない。退室から約15秒以内の再スキャンは新規入室 INSERT しない。
+
+手動打刻は `POST /v1/attendance/manual`（`action=entry|exit`）。退室は同様に未退室行の UPDATE。
+
+## データベース（打刻）
+
+### attendance_logs（マイグレーション 006 以降）
+
+| カラム | 内容 |
+|--------|------|
+| log_id | PK |
+| email, event_id | 対象利用者・イベント |
+| type | `entry`（現行モデルでは1セッション1行。過去の分割 `exit` 行は修復対象） |
+| in_time | 入室時刻（JST DATETIME）。NULL 不可の運用（entry 行） |
+| out_time | 退室時刻。未退室は NULL |
+| staff_email | 打刻担当 |
+| notes | 手動打刻などの備考（任意） |
+
+ビュー `v_attendance_details` は `in_time IS NOT NULL` かつ `type` が NULL/空/`entry` の行を1入退室として返す（`stay_minutes = TIMESTAMPDIFF(MINUTE, in_time, out_time)`）。
+
+参加者一覧は **最新の打刻行1件** の `in_time` / `out_time` を対で返す（別行の `MAX(out_time)` と混ぜない）。API は JST 壁時計を `+09:00` 付き ISO8601 で返す。
 
 ## セキュリティアーキテクチャ
 

@@ -11,11 +11,13 @@ QRコード打刻システムのREST API仕様です。
 
 ## 認証
 
-すべてのAPIリクエストには認証トークンが必要です（ログインAPIを除く）。
+ログイン・自己登録以外の API は原則 `Authorization: Bearer <token>` が必要。
 
 ```
 Authorization: Bearer <token>
 ```
+
+**パスワードリセットは REST API ではない。** フロント `/login/forgot-password` が Cognito（Amplify `resetPassword` / `confirmResetPassword`）を直接呼び出す。
 
 ## エラーレスポンス
 
@@ -53,6 +55,8 @@ Authorization: Bearer <token>
 }
 ```
 
+**同期・救済**: Cognito 認証成功後に DB `users` が無ければ Cognito 属性から行を作成する。Cognito にユーザーが無く DB のパスワードが一致する場合は Cognito ユーザーを恒久パスワードで作成/修復して再認証する。片側欠落だけではログイン失敗にしない。
+
 ---
 
 ### 2. 利用者自己登録
@@ -77,6 +81,8 @@ Authorization: Bearer <token>
   "status": "success"
 }
 ```
+
+Cognito `SignUp`（必要なら管理者確認）のあと `users` に挿入する。DB 失敗時は Cognito ユーザーを削除してロールバックする。
 
 ---
 
@@ -210,28 +216,30 @@ Authorization: Bearer <token>
 
 ---
 
-### 3. 利用者新規登録（管理者用）
+### 3. 利用者新規登録（管理者用・生徒招待）
 
-**エンドポイント**: `POST /v1/users/register`
+**エンドポイント**: `POST /v1/admin/students`
+
+管理者権限必須。Cognito が未設定の場合は **503**。
 
 **リクエストボディ**:
 ```json
 {
-  "admin_email": "admin@example.com",
   "email": "user@example.com",
   "name_kanji": "山田 太郎",
   "name_kana": "ヤマダ タロウ",
-  "password": "password123",
   "tel": "090-1234-5678",
-  "address": "東京都...",
+  "org_id": "ORG01",
   "remarks": "備考"
 }
 ```
 
+パスワードは招待メールの仮パスワードで設定する（リクエストに含めない）。処理順は DB upsert → Cognito `AdminCreateUser`。Cognito 失敗時は DB 行を削除してロールバックする。
+
 **レスポンス** (201 Created):
 ```json
 {
-  "userId": "user@example.com",
+  "email": "user@example.com",
   "status": "success"
 }
 ```
@@ -257,6 +265,8 @@ Authorization: Bearer <token>
   "invitationSent": true
 }
 ```
+
+Cognito 招待と DB `users`（`role_flag=2`）をセットで作成する。Cognito 失敗時は DB をロールバックする。
 
 ---
 
@@ -367,39 +377,74 @@ Authorization: Bearer <token>
 
 ## 打刻API
 
-### 1. 打刻処理
+### 1. QRスキャン打刻
 
-**エンドポイント**: `POST /v1/attendance/punch`
+**エンドポイント**: `POST /v1/users/attendance`
+
+スタッフまたは管理者の Authorization 必須。
 
 **リクエストボディ**:
 ```json
 {
-  "qrCodeData": "encoded_qr_data",
+  "qr_code_data": "base64_qr_payload",
+  "signature": "hmac_sha256_hex",
+  "event_id": 1
+}
+```
+
+**動作（1入退室＝1行）**
+- 未退室行（`in_time IS NOT NULL AND out_time IS NULL`）がある → その行の `out_time` のみ UPDATE。`in_time` は変更しない。`out_time = GREATEST(NOW(), in_time)`。
+- 無い → `type='entry'` を INSERT（`in_time=NOW()`, `out_time=NULL`）。
+- 時刻は DB の `NOW()`（セッション TZ `+09:00` / JST）。Lambda 側の壁時計は使わない。
+- 入室後約15秒以内の再スキャンは退室にしない。退室後約15秒以内は新規入室行を作らない。
+
+**レスポンス** (200 OK - 入室):
+```json
+{
+  "log_id": 11,
+  "action": "in",
+  "in_time": "2026-08-16 10:15:38",
+  "message": "入室打刻が完了しました"
+}
+```
+
+**レスポンス** (200 OK - 退室):
+```json
+{
+  "log_id": 11,
+  "action": "out",
+  "in_time": "2026-08-16 10:15:38",
+  "out_time": "2026-08-16 10:16:23",
+  "message": "退室打刻が完了しました"
+}
+```
+
+---
+
+### 2. 手動打刻
+
+**エンドポイント**: `POST /v1/attendance/manual`
+
+スタッフまたは管理者必須。
+
+**リクエストボディ**:
+```json
+{
+  "event_id": 1,
   "email": "user@example.com",
-  "eventId": 1,
-  "staffEmail": "staff@example.com"
+  "action": "entry"
 }
 ```
 
-**レスポンス** (200 OK):
-```json
-{
-  "logId": 1,
-  "inTime": "2026-01-30T13:30:00Z",
-  "outTime": null,
-  "status": "entered"
-}
-```
+`action` は `entry` / `in`（入室）または `exit` / `out`（退室）。退室は未退室行の UPDATE。開いている入室が無い退室は 400。既に未退室の入室がある状態での入室は 409。
 
-**レスポンス** (200 OK - 退室時):
-```json
-{
-  "logId": 1,
-  "inTime": "2026-01-30T13:30:00Z",
-  "outTime": "2026-01-30T15:00:00Z",
-  "status": "exited"
-}
-```
+---
+
+### 3. 打刻履歴
+
+**エンドポイント**: `GET /v1/users/attendance/history`
+
+`in_time` のある entry 行のみ返す（1入退室＝1レコード）。未設定の時刻は null（フロントは `-` 表示）。
 
 ---
 
@@ -411,4 +456,6 @@ Authorization: Bearer <token>
 - `401 Unauthorized`: 認証エラー
 - `403 Forbidden`: 権限エラー
 - `404 Not Found`: リソースが見つからない
+- `409 Conflict`: 競合（未退室の入室がある状態での再入室など）
 - `500 Internal Server Error`: サーバーエラー
+- `503 Service Unavailable`: Cognito 未設定など依存サービス不可

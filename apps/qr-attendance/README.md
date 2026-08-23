@@ -69,23 +69,33 @@ apps/qr-attendance/
 └── docs/                     # ドキュメント
     ├── API.md               # API仕様書
     ├── ARCHITECTURE.md      # アーキテクチャ詳細
+    ├── USER_MANUAL.md       # 利用マニュアル
     └── ROADMAP.md           # 実装ロードマップ
 ```
 
 ## 機能一覧
 
 ### 利用者向け機能
-- ユーザー登録・ログイン
+- ユーザー登録・ログイン（Cognito と DB `users` を同期）
+- パスワードをお忘れの場合のセルフリセット（Cognito ForgotPassword）
 - マイページ（QRコード表示）
 - 参加イベント履歴表示
 - スケジュール表示
 
-### 管理者向け機能
-- 生徒名簿管理
+### スタッフ・管理者向け機能
+- 生徒名簿管理・招待（Cognito 招待メール + DB 同時作成）
+- スタッフ招待
 - イベント作成・管理
+- QRスキャン打刻 / 手動打刻
 - 打刻レポート出力
 - お知らせ投稿
-- スタッフ管理
+
+## 認証と打刻の要点
+
+- **Cognito と DB の同期**: 生徒招待（`POST /v1/admin/students`）・スタッフ招待（`POST /v1/admin/invite`）・自己登録（`POST /v1/users/register`）は Cognito ユーザーと `users` 行をセットで作成する。片側だけ成功した場合はロールバックする。ログイン（`POST /v1/users/login`）では、Cognito のみ / DB のみの欠けを相互補完する。
+- **パスワードリセット**: ログイン画面の「パスワードをお忘れの方はこちら」から、確認コードメール → 新パスワード設定まで利用者が完了できる（Amplify `resetPassword` / `confirmResetPassword`）。管理者への依頼は不要。
+- **打刻（1入退室＝1行）**: 入室は `attendance_logs` に `type=entry` 行を INSERT（`in_time=NOW()`、`out_time=NULL`）。退室は未退室行の `out_time` だけを UPDATE し、新規行は作らない。時刻は DB セッション `+09:00`（JST）の `NOW()` を唯一の時計とする。`out_time = GREATEST(NOW(), in_time)` で逆転を防ぎ、約15秒以内の連続スキャンは同一スキャンとして無視する。
+- **DB（マイグレーション 006 以降）**: `attendance_logs.type` を持つ。ビュー `v_attendance_details` は `in_time` のある entry 行を1入退室として返す。
 
 ## セットアップ
 
@@ -144,6 +154,7 @@ mysql -u root -p qr_attendance < schema.sql
 - **[実装ロードマップ](./docs/ROADMAP.md)** - 開発計画（10フェーズ）
 - **[API仕様書](./docs/API.md)** - REST API仕様
 - **[アーキテクチャ詳細](./docs/ARCHITECTURE.md)** - システムアーキテクチャ
+- **[利用マニュアル](./docs/USER_MANUAL.md)** - 利用者・スタッフ向け操作説明
 
 ### 開発フロー
 
