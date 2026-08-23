@@ -16,6 +16,7 @@ import {
   getUserPoolId,
   hashPasswordSha256,
   upsertDbUser,
+  acceptTermsAtNow,
 } from '../../../shared/utils/cognito-db-sync';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,12 +33,20 @@ export const handler = async (
       return errorResponse('BAD_REQUEST', 'Request body is required', 400);
     }
 
-    const { email, password, name_kanji, name_kana, tel } = JSON.parse(event.body);
+    const { email, password, name_kanji, name_kana, tel, terms_accepted } = JSON.parse(event.body);
 
     if (!email || !password || !name_kanji || !name_kana || !tel) {
       return errorResponse(
         'BAD_REQUEST',
         'Email, password, name_kanji, name_kana, and tel are required',
+        400
+      );
+    }
+
+    if (terms_accepted !== true && terms_accepted !== 'true') {
+      return errorResponse(
+        'BAD_REQUEST',
+        'You must accept the terms of service and privacy policy',
         400
       );
     }
@@ -108,6 +117,7 @@ export const handler = async (
             tel,
             role_flag: 1,
           });
+          await acceptTermsAtNow(conn, normalizedEmail);
           return;
         }
         await upsertDbUser(conn, {
@@ -118,6 +128,7 @@ export const handler = async (
           tel,
           role_flag: 1,
         });
+        await acceptTermsAtNow(conn, normalizedEmail);
       });
     } catch (dbError: any) {
       console.error('DB registration failed after Cognito create:', dbError);

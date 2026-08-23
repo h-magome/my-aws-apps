@@ -20,9 +20,12 @@ const handler = async (event) => {
         if (!event.body) {
             return (0, response_1.errorResponse)('BAD_REQUEST', 'Request body is required', 400);
         }
-        const { email, password, name_kanji, name_kana, tel } = JSON.parse(event.body);
+        const { email, password, name_kanji, name_kana, tel, terms_accepted } = JSON.parse(event.body);
         if (!email || !password || !name_kanji || !name_kana || !tel) {
             return (0, response_1.errorResponse)('BAD_REQUEST', 'Email, password, name_kanji, name_kana, and tel are required', 400);
+        }
+        if (terms_accepted !== true && terms_accepted !== 'true') {
+            return (0, response_1.errorResponse)('BAD_REQUEST', 'You must accept the terms of service and privacy policy', 400);
         }
         if (password.length < 8) {
             return (0, response_1.errorResponse)('BAD_REQUEST', 'Password must be at least 8 characters', 400);
@@ -75,6 +78,7 @@ const handler = async (event) => {
                         tel,
                         role_flag: 1,
                     });
+                    await (0, cognito_db_sync_1.acceptTermsAtNow)(conn, normalizedEmail);
                     return;
                 }
                 await (0, cognito_db_sync_1.upsertDbUser)(conn, {
@@ -85,6 +89,7 @@ const handler = async (event) => {
                     tel,
                     role_flag: 1,
                 });
+                await (0, cognito_db_sync_1.acceptTermsAtNow)(conn, normalizedEmail);
             });
         }
         catch (dbError) {

@@ -21,6 +21,7 @@ CREATE TABLE users (
     org_id VARCHAR(20) NULL COMMENT '組織ID',
     role_flag INT NOT NULL COMMENT '役割フラグ: 1=利用者, 2=スタッフ等, 3=管理者',
     is_active TINYINT NOT NULL DEFAULT 1 COMMENT '有効=1, 退会=0。0の場合はログイン・新規申込不可',
+    terms_accepted_at DATETIME NULL COMMENT '利用規約・プライバシーポリシー同意日時（JST）。NULL=未同意。管理者は対象外',
     remarks TEXT NULL COMMENT '備考',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '作成日時',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新日時',

@@ -298,6 +298,16 @@ export default function MyPage() {
                   📆 スケジュールを見る
                 </Link>
               </li>
+              <li>
+                <Link href="/terms" className="text-indigo-600 hover:text-indigo-800 font-medium">
+                  📄 利用規約
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="text-indigo-600 hover:text-indigo-800 font-medium">
+                  🔒 プライバシーポリシー
+                </Link>
+              </li>
             </ul>
           </section>
         </div>

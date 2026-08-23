@@ -157,6 +157,15 @@ export default function LoginPage() {
             </Link>
           </div>
         </form>
+        <p className="text-center text-sm text-gray-500">
+          <Link href="/terms" className="text-indigo-600 hover:text-indigo-500">
+            利用規約
+          </Link>
+          {' ・ '}
+          <Link href="/privacy" className="text-indigo-600 hover:text-indigo-500">
+            プライバシーポリシー
+          </Link>
+        </p>
       </div>
     </div>
   );

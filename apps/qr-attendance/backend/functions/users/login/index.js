@@ -92,6 +92,7 @@ const handler = async (event) => {
                         email,
                         userName: user.name_kanji || email,
                         roleFlag: user.role_flag || 1,
+                        termsAcceptedAt: (0, cognito_db_sync_1.serializeTermsAcceptedAt)(user.terms_accepted_at),
                     });
                 }
                 if (!authResponse.AuthenticationResult) {
@@ -135,6 +136,7 @@ const handler = async (event) => {
                                 email,
                                 userName: user.name_kanji || email,
                                 roleFlag: user.role_flag || 1,
+                                termsAcceptedAt: (0, cognito_db_sync_1.serializeTermsAcceptedAt)(user.terms_accepted_at),
                             });
                         }
                         if (!retry.AuthenticationResult) {
@@ -180,6 +182,7 @@ const handler = async (event) => {
             userName: user.name_kanji || email,
             orgId: user.org_id,
             roleFlag: user.role_flag || 1,
+            termsAcceptedAt: (0, cognito_db_sync_1.serializeTermsAcceptedAt)(user.terms_accepted_at),
         });
     }
     catch (error) {

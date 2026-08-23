@@ -146,6 +146,7 @@ export class ApiClient {
       userName: string;
       orgId: string | null;
       roleFlag: number;
+      termsAcceptedAt?: string | null;
     };
   }
 
@@ -155,6 +156,7 @@ export class ApiClient {
     name_kanji: string;
     name_kana: string;
     tel: string;
+    terms_accepted: boolean;
   }) {
     return this.request<{
       userId: string;
@@ -300,7 +302,17 @@ export class ApiClient {
       name_kana: string | null;
       role_flag: number;
       org_id: string | null;
+      terms_accepted_at: string | null;
     }>('/v1/users/me', { method: 'GET' });
+  }
+
+  /** 利用規約・プライバシーポリシー同意。DB の NOW()（JST）を記録 */
+  async acceptTerms() {
+    return this.request<{
+      email: string;
+      terms_accepted_at: string | null;
+      status: string;
+    }>('/v1/users/terms-accept', { method: 'POST', body: JSON.stringify({}) });
   }
 
   /** 利用者用マイQR取得（スマホで表示用）。有効期限約10分 */

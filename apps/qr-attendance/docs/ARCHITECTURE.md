@@ -66,17 +66,20 @@
 3. 成功時、DB に users 行が無ければ Cognito 属性から users を自動作成
 4. Cognito にユーザーが無い（または認証失敗）が DB に行がありパスワードが一致する場合:
    Cognito ユーザーを恒久パスワードで作成/修復してから再認証
-5. Lambda → クライアント: JWT（または API トークン）+ ユーザー情報
+5. Lambda → クライアント: JWT（または API トークン）+ ユーザー情報（`termsAcceptedAt` を含む）
 ```
 
 フロントは Amplify `signIn` を優先し、Cognito 側にユーザーが無い場合は上記 API ログインで救済したうえで再 signIn する。
+
+管理者以外（生徒・保護者・スタッフ）で `users.terms_accepted_at` が NULL の場合、フロントは `/consent` で同意を求め、`POST /v1/users/terms-accept` が DB の `NOW()`（JST）を記録してからホームへ進む。公開ページ `/terms` `/privacy` は未ログインでも閲覧できる。
 
 ### 1b. 招待・自己登録（アトミック作成）
 
 - **生徒招待** `POST /v1/admin/students`: DB `users` を upsert したうえで Cognito `AdminCreateUser`（招待メール）。Cognito 失敗時は DB 行をロールバックする。
 - **スタッフ招待** `POST /v1/admin/invite`: 同様に Cognito 招待と DB 挿入をセットで行い、失敗時はロールバックする。
-- **自己登録** `POST /v1/users/register`: Cognito `SignUp` + 管理者確認のあと DB 挿入。DB 失敗時は Cognito ユーザーを削除する。
+- **自己登録** `POST /v1/users/register`: Cognito `SignUp` + 管理者確認のあと DB 挿入。`terms_accepted=true` 必須。DB 失敗時は Cognito ユーザーを削除する。
 - 共通実装は `backend/shared/utils/cognito-db-sync.ts`。Cognito 未設定時は招待 API は 503。
+- **同意記録**: `users.terms_accepted_at`（マイグレーション 009）。自己登録・初回パスワード設定後の同意 API・ログイン後ガードから `NOW()` を書き込む。
 
 ### 1c. パスワードリセット（フロント → Cognito 直接）
 

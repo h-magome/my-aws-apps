@@ -76,6 +76,11 @@ interface AuthContextType {
   register: (email: string, password: string, nameKanji: string, nameKana: string, tel: string) => Promise<SignUpOutput>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  termsAcceptedAt: string | null;
+  termsStatusLoading: boolean;
+  /** 管理者以外で未同意のとき true */
+  needsTermsAcceptance: boolean;
+  acceptTerms: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -84,6 +89,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [roleFlag, setRoleFlag] = useState<number | null>(null);
+  const [termsAcceptedAt, setTermsAcceptedAt] = useState<string | null>(null);
+  const [termsStatusLoading, setTermsStatusLoading] = useState(true);
+
+  const refreshTermsFromMe = async () => {
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    if (!authToken) {
+      setTermsAcceptedAt(null);
+      setTermsStatusLoading(false);
+      return;
+    }
+    setTermsStatusLoading(true);
+    try {
+      const me = await apiClient.getMe();
+      if (me.role_flag !== undefined) {
+        localStorage.setItem('roleFlag', String(me.role_flag));
+        setRoleFlag(me.role_flag);
+      }
+      setTermsAcceptedAt(me.terms_accepted_at || null);
+    } catch {
+      setTermsAcceptedAt(null);
+    } finally {
+      setTermsStatusLoading(false);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -127,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedRoleFlag) {
         setRoleFlag(parseInt(storedRoleFlag, 10));
       }
+      await refreshTermsFromMe();
     } catch (error) {
       // Cognitoエラーの場合でも、ローカルストレージにトークンがあれば認証済みとみなす
       const authToken = localStorage.getItem('authToken');
@@ -160,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setRoleFlag(null);
       }
+      await refreshTermsFromMe();
     } finally {
       setIsLoading(false);
     }
@@ -173,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     token: string;
     refreshToken?: string;
     roleFlag?: number;
+    termsAcceptedAt?: string | null;
   }) => {
     if (response.token) {
       localStorage.setItem('authToken', response.token);
@@ -180,6 +212,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.roleFlag !== undefined) {
         localStorage.setItem('roleFlag', String(response.roleFlag));
         setRoleFlag(response.roleFlag);
+      }
+      if (response.termsAcceptedAt !== undefined) {
+        setTermsAcceptedAt(response.termsAcceptedAt || null);
+        setTermsStatusLoading(false);
       }
     }
   };
@@ -295,6 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name_kanji: nameKanji,
       name_kana: nameKana,
       tel,
+      terms_accepted: true,
     });
 
     return {
@@ -330,9 +367,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(null);
     setRoleFlag(null);
+    setTermsAcceptedAt(null);
+    setTermsStatusLoading(false);
     localStorage.removeItem('authToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('roleFlag');
+  };
+
+  const acceptTerms = async () => {
+    const res = await apiClient.acceptTerms();
+    setTermsAcceptedAt(res.terms_accepted_at || null);
+    setTermsStatusLoading(false);
   };
 
   const role = roleFlag ? (roleFlag as UserRole) : null;
@@ -341,6 +386,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const roleLabel =
     role === UserRole.ADMIN ? '管理者' : role === UserRole.STAFF ? 'スタッフ' : '利用者';
   const isCognitoEnabled = isCognitoConfigured;
+  const needsTermsAcceptance =
+    !!user && roleFlag !== UserRole.ADMIN && !termsAcceptedAt && !termsStatusLoading;
 
   return (
     <AuthContext.Provider
@@ -360,6 +407,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         checkAuth,
+        termsAcceptedAt,
+        termsStatusLoading,
+        needsTermsAcceptance,
+        acceptTerms,
       }}
     >
       {children}

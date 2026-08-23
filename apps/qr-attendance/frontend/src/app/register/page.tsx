@@ -7,6 +7,8 @@ import ErrorAlert from '@/components/ui/ErrorAlert';
 import SuccessAlert from '@/components/ui/SuccessAlert';
 import LoadingButton from '@/components/ui/LoadingButton';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import TermsConsentCheckbox from '@/components/legal/TermsConsentCheckbox';
+import LegalFooter from '@/components/legal/LegalFooter';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -20,6 +22,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
 
@@ -42,6 +45,11 @@ export default function RegisterPage() {
 
     if (formData.password.length < 8) {
       setError('パスワードは8文字以上で入力してください');
+      return;
+    }
+
+    if (!termsAccepted) {
+      setError('利用規約およびプライバシーポリシーへの同意が必要です');
       return;
     }
 
@@ -192,6 +200,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
               />
             </div>
+            <TermsConsentCheckbox checked={termsAccepted} onChange={setTermsAccepted} />
           </div>
 
           <div>
@@ -214,6 +223,7 @@ export default function RegisterPage() {
             </a>
           </div>
         </form>
+        <LegalFooter />
       </div>
     </div>
   );

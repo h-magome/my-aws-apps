@@ -44,6 +44,8 @@ exports.isCognitoConfigured = isCognitoConfigured;
 exports.randomPlaceholderPasswordHash = randomPlaceholderPasswordHash;
 exports.hashPasswordSha256 = hashPasswordSha256;
 exports.findDbUser = findDbUser;
+exports.serializeTermsAcceptedAt = serializeTermsAcceptedAt;
+exports.acceptTermsAtNow = acceptTermsAtNow;
 exports.upsertDbUser = upsertDbUser;
 exports.deleteDbUser = deleteDbUser;
 exports.ensureCognitoInvitedUser = ensureCognitoInvitedUser;
@@ -75,8 +77,39 @@ function randomPlaceholderPasswordHash() {
 function hashPasswordSha256(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
+function serializeTermsAcceptedAt(value) {
+    if (value == null || value === '')
+        return null;
+    if (value instanceof Date) {
+        if (Number.isNaN(value.getTime()) || value.getFullYear() < 1980)
+            return null;
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Tokyo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+        }).formatToParts(value);
+        const get = (t) => { var _a; return ((_a = parts.find((p) => p.type === t)) === null || _a === void 0 ? void 0 : _a.value) || '00'; };
+        return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+    }
+    const s = String(value).trim();
+    if (!s || s === 'null' || s.startsWith('0000-00-00'))
+        return null;
+    return s.replace('T', ' ').replace(/\.\d+/, '').replace(/[zZ]|[+-]\d{2}:?\d{2}$/, '').trim();
+}
+async function acceptTermsAtNow(conn, email) {
+    await conn.execute(`UPDATE users
+     SET terms_accepted_at = NOW(), updated_at = CURRENT_TIMESTAMP
+     WHERE email = ? AND terms_accepted_at IS NULL`, [email]);
+    const [rows] = (await conn.execute('SELECT terms_accepted_at FROM users WHERE email = ? LIMIT 1', [email]));
+    return serializeTermsAcceptedAt(rows[0] && rows[0].terms_accepted_at);
+}
 async function findDbUser(conn, email) {
-    const [rows] = (await conn.execute('SELECT email, password, name_kanji, name_kana, tel, org_id, role_flag, remarks FROM users WHERE email = ?', [email]));
+    const [rows] = (await conn.execute('SELECT email, password, name_kanji, name_kana, tel, org_id, role_flag, remarks, terms_accepted_at FROM users WHERE email = ?', [email]));
     return rows[0] || null;
 }
 async function upsertDbUser(conn, params) {
@@ -376,4 +409,3 @@ async function initiateUserPasswordAuth(email, password) {
         },
     }));
 }
-//# sourceMappingURL=cognito-db-sync.js.map

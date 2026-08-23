@@ -34,6 +34,8 @@ const MENU_ITEMS: MenuItem[] = [
   { label: '参加申込一覧', path: '/user/registrations', description: '自分が申し込んだイベント', icon: '📝', showWhen: 'all' },
   { label: 'スケジュール', path: '/schedule', description: '申込イベント＋打刻状況（月別）', icon: '📆', showWhen: 'all' },
   { label: 'マイページ', path: '/user/me', description: '自分のプロフィール', icon: '👤', showWhen: 'all' },
+  { label: '利用規約', path: '/terms', description: 'サービスの利用条件', icon: '📄', showWhen: 'all' },
+  { label: 'プライバシーポリシー', path: '/privacy', description: '個人情報の取扱い', icon: '🔒', showWhen: 'all' },
   // スタッフ以上
   { label: '打刻スキャン（スタッフ用）', path: '/staff/scan', description: '利用者QRをスキャンして打刻', icon: '📷', showWhen: 'staff' },
   { label: '手動打刻', path: '/staff/manual', description: '登録済み生徒の検索→イベント選択→手動打刻', icon: '✏️', showWhen: 'staff' },

@@ -54,11 +54,49 @@ export type DbUserRow = {
   org_id: string | null;
   role_flag: number;
   remarks?: string | null;
+  terms_accepted_at?: string | Date | null;
 };
+
+export function serializeTermsAcceptedAt(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime()) || value.getFullYear() < 1980) return null;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(value);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || '00';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+  }
+  const s = String(value).trim();
+  if (!s || s === 'null' || s.startsWith('0000-00-00')) return null;
+  return s.replace('T', ' ').replace(/\.\d+/, '').replace(/[zZ]|[+-]\d{2}:?\d{2}$/, '').trim();
+}
+
+/** 未同意なら DB の NOW()（JST セッション）を記録して返す。既に同意済みなら既存値。 */
+export async function acceptTermsAtNow(conn: PoolConnection, email: string): Promise<string | null> {
+  await conn.execute(
+    `UPDATE users
+     SET terms_accepted_at = NOW(), updated_at = CURRENT_TIMESTAMP
+     WHERE email = ? AND terms_accepted_at IS NULL`,
+    [email]
+  );
+  const [rows] = (await conn.execute(
+    'SELECT terms_accepted_at FROM users WHERE email = ? LIMIT 1',
+    [email]
+  )) as any[];
+  return serializeTermsAcceptedAt(rows[0]?.terms_accepted_at);
+}
 
 export async function findDbUser(conn: PoolConnection, email: string): Promise<DbUserRow | null> {
   const [rows] = (await conn.execute(
-    'SELECT email, password, name_kanji, name_kana, tel, org_id, role_flag, remarks FROM users WHERE email = ?',
+    'SELECT email, password, name_kanji, name_kana, tel, org_id, role_flag, remarks, terms_accepted_at FROM users WHERE email = ?',
     [email]
   )) as any[];
   return rows[0] || null;

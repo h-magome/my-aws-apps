@@ -49,11 +49,16 @@ Authorization: Bearer <token>
 ```json
 {
   "token": "jwt_token_here",
+  "refreshToken": "refresh_token_here",
   "userId": "user@example.com",
   "userName": "山田 太郎",
-  "orgId": "org001"
+  "orgId": "org001",
+  "roleFlag": 1,
+  "termsAcceptedAt": "2026-08-23 10:00:00"
 }
 ```
+
+`termsAcceptedAt` は `users.terms_accepted_at`（JST DATETIME）を文字列化した値。未同意のときは `null`。管理者（`roleFlag=3`）以外は、フロントが未同意なら同意画面へ誘導する。
 
 **同期・救済**: Cognito 認証成功後に DB `users` が無ければ Cognito 属性から行を作成する。Cognito にユーザーが無く DB のパスワードが一致する場合は Cognito ユーザーを恒久パスワードで作成/修復して再認証する。片側欠落だけではログイン失敗にしない。
 
@@ -70,9 +75,12 @@ Authorization: Bearer <token>
   "name_kana": "ヤマダ タロウ",
   "email": "user@example.com",
   "password": "password123",
-  "tel": "090-1234-5678"
+  "tel": "090-1234-5678",
+  "terms_accepted": true
 }
 ```
+
+`terms_accepted` が `true` でない場合は 400。同意すると `users.terms_accepted_at` に DB の `NOW()`（セッション JST）を記録する。
 
 **レスポンス** (201 Created):
 ```json
@@ -90,16 +98,36 @@ Cognito `SignUp`（必要なら管理者確認）のあと `users` に挿入す�
 
 **エンドポイント**: `GET /v1/users/me`
 
-**クエリパラメータ**:
-- `email` (required): メールアドレス
+**認証**: `Authorization: Bearer <token>`
 
 **レスポンス** (200 OK):
 ```json
 {
-  "userId": "user@example.com",
-  "userName": "山田 太郎",
-  "orgId": "org001",
-  "qrCodeData": "base64_encoded_qr_data"
+  "email": "user@example.com",
+  "name_kanji": "山田 太郎",
+  "name_kana": "ヤマダ タロウ",
+  "role_flag": 1,
+  "org_id": "org001",
+  "terms_accepted_at": "2026-08-23 10:00:00"
+}
+```
+
+---
+
+### 3b. 利用規約・プライバシーポリシー同意
+
+**エンドポイント**: `POST /v1/users/terms-accept`
+
+**認証**: `Authorization: Bearer <token>`
+
+本文は空でよい。`terms_accepted_at` が NULL のときだけ `NOW()`（JST）で更新する（冪等）。
+
+**レスポンス** (200 OK):
+```json
+{
+  "email": "user@example.com",
+  "terms_accepted_at": "2026-08-23 10:00:00",
+  "status": "accepted"
 }
 ```
 

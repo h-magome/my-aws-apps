@@ -10,14 +10,16 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import ErrorAlert from '@/components/ui/ErrorAlert';
 import LoadingButton from '@/components/ui/LoadingButton';
+import TermsConsentCheckbox from '@/components/legal/TermsConsentCheckbox';
 
 function SetNewPasswordForm() {
   const searchParams = useSearchParams();
   const email = (searchParams.get('email') || '').trim();
   const router = useRouter();
-  const { completeNewPassword, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { completeNewPassword, acceptTerms, isAuthenticated, isLoading: authLoading } = useAuth();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,9 +45,14 @@ function SetNewPasswordForm() {
       setError('確認用パスワードが一致しません');
       return;
     }
+    if (!termsAccepted) {
+      setError('利用規約およびプライバシーポリシーへの同意が必要です');
+      return;
+    }
     setSubmitting(true);
     try {
       await completeNewPassword(email, password);
+      await acceptTerms();
       router.replace('/home');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'パスワード設定に失敗しました';
@@ -120,6 +127,7 @@ function SetNewPasswordForm() {
                 onChange={(e) => setConfirm(e.target.value)}
               />
             </div>
+            <TermsConsentCheckbox checked={termsAccepted} onChange={setTermsAccepted} />
           </div>
           <LoadingButton type="submit" loading={submitting} variant="primary" className="w-full">
             設定してログイン

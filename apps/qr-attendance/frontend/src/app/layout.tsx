@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import TermsConsentGuard from '@/components/legal/TermsConsentGuard'
 
 export const metadata: Metadata = {
   title: 'QRコード打刻システム',
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <TermsConsentGuard>{children}</TermsConsentGuard>
+        </AuthProvider>
       </body>
     </html>
   )

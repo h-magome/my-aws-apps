@@ -715,6 +715,18 @@ export class QrAttendanceApiStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
     });
 
+    const termsAcceptLambda = new lambda.Function(this, 'TermsAcceptLambda', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../../backend/functions/users/terms-accept')),
+      role: lambdaRole,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [props.lambdaSecurityGroup],
+      environment: { ...lambdaDbEnv },
+      timeout: cdk.Duration.seconds(30),
+    });
+
     const userMeQrLambda = new lambda.Function(this, 'UserMeQrLambda', {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'index.handler',
@@ -917,6 +929,8 @@ export class QrAttendanceApiStack extends cdk.Stack {
     userMeQrResource.addMethod('GET', new apigateway.LambdaIntegration(userMeQrLambda));
     const userScheduleResource = usersResource.addResource('schedule');
     userScheduleResource.addMethod('GET', new apigateway.LambdaIntegration(userScheduleLambda));
+    const termsAcceptResource = usersResource.addResource('terms-accept');
+    termsAcceptResource.addMethod('POST', new apigateway.LambdaIntegration(termsAcceptLambda));
 
     // GET /v1/news（お知らせ一覧）
     const newsResource = v1Resource.addResource('news');

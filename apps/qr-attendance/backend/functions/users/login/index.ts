@@ -18,6 +18,7 @@ import {
   getUserPoolId,
   hashPasswordSha256,
   initiateUserPasswordAuth,
+  serializeTermsAcceptedAt,
 } from '../../../shared/utils/cognito-db-sync';
 import * as crypto from 'crypto';
 
@@ -79,6 +80,7 @@ export const handler = async (
             email,
             userName: user.name_kanji || email,
             roleFlag: user.role_flag || 1,
+            termsAcceptedAt: serializeTermsAcceptedAt(user.terms_accepted_at),
           });
         }
 
@@ -131,6 +133,7 @@ export const handler = async (
                 email,
                 userName: user.name_kanji || email,
                 roleFlag: user.role_flag || 1,
+                termsAcceptedAt: serializeTermsAcceptedAt(user.terms_accepted_at),
               });
             }
             if (!retry.AuthenticationResult) {
@@ -177,6 +180,7 @@ export const handler = async (
       userName: user.name_kanji || email,
       orgId: user.org_id,
       roleFlag: user.role_flag || 1,
+      termsAcceptedAt: serializeTermsAcceptedAt(user.terms_accepted_at),
     });
   } catch (error: any) {
     console.error('Login error:', error);
