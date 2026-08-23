@@ -141,6 +141,15 @@ export default function LoginPage() {
 
           <div className="text-center">
             <Link
+              href={`/login/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`}
+              className="text-sm text-indigo-600 hover:text-indigo-500"
+            >
+              パスワードをお忘れの方はこちら
+            </Link>
+          </div>
+
+          <div className="text-center">
+            <Link
               href="/register"
               className="text-sm text-indigo-600 hover:text-indigo-500"
             >
