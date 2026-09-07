@@ -23,9 +23,10 @@ QrAttendance の API、RDS MySQL、dev VPC は 2026-09-07 に廃止しました�
 - 削除済み API stack
 - dev RDS/VPC stack
 
-AWS 側では、管理者グループ、実際に復元操作を行ったユーザー、および既知の
-CloudFormation 実行ロールに `../guardrails/deny-rds-recreation.json` を
-インラインポリシー `DenyQrAttendanceRdsRecreation` として設定しています。
+AWS 側では、管理者グループ、実際に復元操作を行ったユーザー、既知の
+CloudFormation 実行ロール、および AWS Backup 復元ロールに
+`../guardrails/deny-rds-recreation.json` をインラインポリシー
+`DenyQrAttendanceRdsRecreation` として設定しています。
 QrAttendance を示す DB 識別子、`Project=qr-attendance` タグ、または保持 snapshot を
 使った DB 作成・復元を明示的に拒否します。このガードを外す場合は、RDS Extended
 Support を無効にした復元計画と承認を先に用意してください。
