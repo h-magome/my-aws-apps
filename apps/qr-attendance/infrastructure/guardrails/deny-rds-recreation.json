@@ -41,6 +41,15 @@
         "arn:aws:rds:*:588738585231:snapshot:*qrattendance*",
         "arn:aws:rds:*:588738585231:snapshot:*qr-attendance*"
       ]
+    },
+    {
+      "Sid": "DenyRestoreFromQrAttendanceAutomatedBackups",
+      "Effect": "Deny",
+      "Action": "rds:RestoreDBInstanceToPointInTime",
+      "Resource": [
+        "arn:aws:rds:ap-northeast-1:588738585231:auto-backup:ab-afbyugprysgdk27shr4niwzlavbmte7igvelss4q2fcgtujzjoly4qxobzkqtjb3",
+        "arn:aws:rds:ap-northeast-1:588738585231:auto-backup:ab-xgg7zn4ln3mzt4aiak5kpdmv5y2hcsz44w3ua7b6o4himk3qifzkpgf4ljwmc6md"
+      ]
     }
   ]
 }
