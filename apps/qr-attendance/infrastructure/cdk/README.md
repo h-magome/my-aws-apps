@@ -8,6 +8,10 @@ QrAttendance の API、RDS MySQL、dev VPC は 2026-09-07 に廃止しました�
   `LambdaSecurityGroup`
 - `dev`: synth 対象なし
 
+共有先の Aurora PostgreSQL `post-automation-prod-aurora-pg` は保持しています。
+2026-09-07 に RDS Extended Support の自動加入を無効化し、エンジン 16.13 と
+稼働状態を変えずに `open-source-rds-extended-support-disabled` へ設定済みです。
+
 `QrAttendanceApiStack-*` と `QrAttendanceRdsStack-dev` は意図的に synth 対象から
 除外しています。`QrAttendanceRdsStack-prod` という既存 stack 名は互換性のため
 維持していますが、DB関連リソースを含まないネットワーク専用スタックです。
