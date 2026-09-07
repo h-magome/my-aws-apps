@@ -16,9 +16,19 @@ export class QrAttendanceRdsStack extends cdk.Stack {
     super(scope, id, props);
 
     // post-automation と共有しているため、既存の論理 ID を変えずに維持する。
+    //
+    // NAT Gateway は 2026-09 に廃止 (時間課金 $50/月 の削減)。
+    // post-automation の Lambda は RDS Data API 移行で VPC 外に出たため、
+    // この VPC から外向き通信を行うものは残っていない (EC2 web はパブリック
+    // サブネット + EIP で NAT 非依存、Aurora へは Data API 経由)。
+    // ⚠️ デプロイ前提: post-automation 側の Data API 移行 + Lambda の VPC 離脱
+    // が完了し、VPC 内の lambda タイプ ENI が消えていること。
+    // 'private' サブネットは NAT 廃止に伴い PRIVATE_ISOLATED に変更
+    // (subnet group 名と CIDR は据え置きなのでサブネット自体は置換されず、
+    // NAT 向けルートと NAT GW / EIP だけが削除される)。
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
-      natGateways: 1,
+      natGateways: 0,
       subnetConfiguration: [
         {
           cidrMask: 24,
@@ -28,7 +38,7 @@ export class QrAttendanceRdsStack extends cdk.Stack {
         {
           cidrMask: 24,
           name: 'private',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+          subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
         },
         {
           cidrMask: 24,
